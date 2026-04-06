@@ -1,3 +1,8 @@
+mod gb;
+
+use gb::Emulator;
+
 fn main() {
-    println!("Hello, world!");
+    let mut emulator = Emulator::default();
+    println!("{:#?}", emulator);
 }
