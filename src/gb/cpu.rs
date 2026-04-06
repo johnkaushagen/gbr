@@ -2,6 +2,9 @@ use std::fmt::Debug;
 
 use super::Memory;
 
+mod flags;
+use flags::Flags;
+
 #[derive(Debug, Default)]
 pub struct Cpu {
     a: u8,
@@ -30,29 +33,3 @@ impl Cpu {
         }
     }
 }
-
-// Flags
-
-const ZFLAG: u8 = 1 << 7;
-const NFLAG: u8 = 1 << 6;
-const HFLAG: u8 = 1 << 5;
-const CFLAG: u8 = 1 << 4;
-
-#[derive(Debug, Default, Copy, Clone)]
-struct Flags {
-    z: bool,
-    n: bool,
-    h: bool,
-    c: bool,
-}
-
-impl From<Flags> for u8 {
-    fn from(value: Flags) -> Self {
-        (value.z as u8 * ZFLAG)
-            | (value.n as u8 * NFLAG)
-            | (value.h as u8 * HFLAG)
-            | (value.c as u8 * CFLAG)
-    }
-}
-
-trait Register {}
