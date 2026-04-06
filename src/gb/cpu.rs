@@ -23,6 +23,12 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(1);
         opcode
     }
+
+    pub fn execute_opcode(&mut self, opcode: u8, memory: &Memory) -> usize {
+        match opcode {
+            _ => todo!("op {:#04X}", opcode),
+        }
+    }
 }
 
 // Flags

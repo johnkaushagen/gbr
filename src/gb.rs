@@ -10,12 +10,15 @@ use memory::Memory;
 pub struct Emulator {
     cpu: Cpu,
     memory: Memory,
+
+    cycles_elapsed: usize,
 }
 
 impl Emulator {
     pub fn cycle(&mut self) {
         let opcode = self.cpu.fetch_opcode(&self.memory);
-        println!("Fetched op {:#04X}", opcode);
+        let cycles = self.cpu.execute_opcode(opcode, &self.memory);
+        self.cycles_elapsed += cycles;
     }
 
     pub fn load_rom(&mut self, rom_path: &str) {

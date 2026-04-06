@@ -5,4 +5,7 @@ use gb::Emulator;
 fn main() {
     let mut emulator = Emulator::default();
     println!("{:#?}", emulator);
+    loop {
+        emulator.cycle();
+    }
 }
