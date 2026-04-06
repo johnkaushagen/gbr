@@ -16,8 +16,8 @@ pub struct Emulator {
 
 impl Emulator {
     pub fn cycle(&mut self) {
-        let opcode = self.cpu.fetch_opcode(&self.memory);
-        let cycles = self.cpu.execute_opcode(opcode, &self.memory);
+        let opcode = self.cpu.fetch_byte(&self.memory);
+        let cycles = self.cpu.execute_opcode(opcode, &mut self.memory);
         self.cycles_elapsed += cycles;
     }
 

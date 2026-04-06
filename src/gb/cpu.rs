@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 
+use crate::gb::cpu::instructions::op_0x31_ld_sp_n16;
+
 use super::Memory;
 
 mod flags;
+mod instructions;
 use flags::Flags;
 
 #[derive(Debug, Default)]
@@ -21,14 +24,15 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn fetch_opcode(&mut self, memory: &Memory) -> u8 {
-        let opcode = memory.read(self.pc);
+    pub fn fetch_byte(&mut self, memory: &Memory) -> u8 {
+        let value = memory.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
-        opcode
+        value
     }
 
-    pub fn execute_opcode(&mut self, opcode: u8, memory: &Memory) -> usize {
+    pub fn execute_opcode(&mut self, opcode: u8, memory: &mut Memory) -> usize {
         match opcode {
+            0x31 => op_0x31_ld_sp_n16(self, memory),
             _ => todo!("op {:#04X}", opcode),
         }
     }
