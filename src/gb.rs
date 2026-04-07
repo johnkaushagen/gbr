@@ -1,3 +1,4 @@
+mod bit_ops;
 mod cpu;
 mod memory;
 
