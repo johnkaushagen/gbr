@@ -1,16 +1,55 @@
 mod bit_ops;
 mod cpu;
 mod memory;
+mod utils;
 
 use std::{fs::File, io::Read};
 
 use cpu::Cpu;
 use memory::Memory;
 
+const SCREEN_W: usize = 160;
+const SCREEN_H: usize = 144;
+const VBLANK_DURATION: usize = 10;
+const SCANLINE_DURATION: usize = 456;
+
+#[derive(Debug)]
+pub struct Ppu {
+    screen: [u8; SCREEN_H * SCREEN_W],
+    scanline: usize,
+    dots: usize,
+}
+
+impl Default for Ppu {
+    fn default() -> Self {
+        Ppu {
+            screen: [0; SCREEN_H * SCREEN_W],
+            scanline: 0,
+            dots: 0,
+        }
+    }
+}
+
+impl Ppu {
+    fn cycle(&mut self, memory: &mut Memory) {
+        self.dots += 4;
+        if self.dots == SCANLINE_DURATION {
+            self.scanline += 1;
+            self.dots = 0;
+        }
+        if self.scanline == (SCREEN_H + VBLANK_DURATION) {
+            println!("Frame finished");
+            self.scanline = 0;
+        }
+        memory.write(0xFF44, self.scanline as u8);
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Emulator {
     cpu: Cpu,
     memory: Memory,
+    ppu: Ppu,
 
     cycles_elapsed: usize,
 }
@@ -19,6 +58,7 @@ impl Emulator {
     pub fn cycle(&mut self) {
         let opcode = self.cpu.fetch_byte(&self.memory);
         let cycles = self.cpu.execute_opcode(opcode, &mut self.memory);
+        self.ppu.cycle(&mut self.memory);
         self.cycles_elapsed += cycles;
     }
 
