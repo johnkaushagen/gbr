@@ -1,7 +1,6 @@
 mod bit_ops;
 mod cpu;
 mod memory;
-mod utils;
 
 use std::{fs::File, io::Read};
 
