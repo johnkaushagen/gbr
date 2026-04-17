@@ -101,7 +101,7 @@ pub fn op_0x22_ld_hli_indirect_a(cpu: &mut Cpu, memory: &mut Memory) -> usize {
     8
 }
 
-pub fn op_0x23_inc_hl(cpu: &mut Cpu, memory: &mut Memory) -> usize {
+pub fn op_0x23_inc_hl(cpu: &mut Cpu, _: &mut Memory) -> usize {
     cpu.set_hl(cpu.hl().wrapping_add(1));
     8
 }

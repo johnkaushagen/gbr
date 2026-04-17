@@ -7,14 +7,12 @@ use std::{fs::File, io::Read};
 use cpu::Cpu;
 use memory::Memory;
 
-const SCREEN_W: usize = 160;
 const SCREEN_H: usize = 144;
 const VBLANK_DURATION: usize = 10;
 const SCANLINE_DURATION: usize = 456;
 
 #[derive(Debug)]
 pub struct Ppu {
-    screen: [u8; SCREEN_H * SCREEN_W],
     scanline: usize,
     dots: usize,
 }
@@ -22,7 +20,6 @@ pub struct Ppu {
 impl Default for Ppu {
     fn default() -> Self {
         Ppu {
-            screen: [0; SCREEN_H * SCREEN_W],
             scanline: 0,
             dots: 0,
         }
