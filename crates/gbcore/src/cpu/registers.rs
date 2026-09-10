@@ -1,5 +1,27 @@
 use super::Flags;
 
+pub trait Register {
+    fn increment(&mut self);
+    fn decrement(&mut self);
+}
+
+impl Register for u8 {
+    fn decrement(&mut self) {
+        *self = self.wrapping_sub(1);
+    }
+    fn increment(&mut self) {
+        *self = self.wrapping_add(1);
+    }
+}
+impl Register for u16 {
+    fn decrement(&mut self) {
+        *self = self.wrapping_sub(1);
+    }
+    fn increment(&mut self) {
+        *self = self.wrapping_add(1);
+    }
+}
+
 pub struct RegisterFile {
     pub a: u8,
     pub b: u8,
