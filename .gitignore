@@ -1,0 +1,7 @@
+/target
+
+*.bin
+*.gb
+
+# OS Stuff
+.DS_Store
