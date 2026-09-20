@@ -1,48 +1,22 @@
+mod registers;
+use registers::RegisterFile;
+
 #[derive(Default)]
 pub struct Cpu {
-    pub a: u8,
-    pub b: u8,
-    pub c: u8,
-    pub d: u8,
-    pub e: u8,
-    pub f: u8,
-    pub h: u8,
-    pub l: u8,
-    pub pc: u16,
-    pub sp: u16,
+    reg: RegisterFile,
 }
 
 impl Cpu {
-    pub fn cycle(&mut self, _bus: &mut [u8; 0x10000]) {
-        todo!()
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum ByteRegister {
-    // i hate this name
-    A,
-    B,
-    C,
-    D,
-    E,
-    F, // I think this one should not be here
-    H,
-    L,
-    HLRef,
-}
-impl ByteRegister {
-    pub fn what_to_call_this(index: usize) -> Result<Self, String> {
-        match index {
-            0 => Ok(Self::B),
-            1 => Ok(Self::C),
-            2 => Ok(Self::D),
-            3 => Ok(Self::E),
-            4 => Ok(Self::H),
-            5 => Ok(Self::L),
-            6 => Ok(Self::HLRef),
-            7 => Ok(Self::A),
-            _ => Err(format!("Wrong index {index} for register table.")),
+    pub fn cycle(&mut self, bus: &mut [u8; 0x10000]) {
+        let opcode = self.fetch_byte(bus);
+        match opcode {
+            _ => todo!("opcode {opcode:#04x}"),
         }
+    }
+
+    pub fn fetch_byte(&mut self, bus: &mut [u8; 0x10000]) -> u8 {
+        let result = bus[self.reg.pc as usize];
+        self.reg.pc = self.reg.pc.wrapping_add(1);
+        result
     }
 }
