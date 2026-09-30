@@ -135,3 +135,43 @@ pub enum Reg8 {
     HLread,
     A,
 }
+
+impl Reg8 {
+    pub fn from_index(index: u8) -> Self {
+        match index {
+            0 => Self::B,
+            1 => Self::C,
+            2 => Self::D,
+            3 => Self::E,
+            4 => Self::H,
+            5 => Self::L,
+            6 => Self::HLread,
+            7 => Self::A,
+            _ => panic!("Invalid index {index} for Reg::from_index"),
+        }
+    }
+    pub fn read<B: Bus>(&self, rf: &mut RegisterFile, bus: &mut B) -> u8 {
+        match self {
+            Self::B => rf.b,
+            Self::C => rf.c,
+            Self::D => rf.d,
+            Self::E => rf.e,
+            Self::H => rf.h,
+            Self::L => rf.l,
+            Self::HLread => bus.read(rf.hl()),
+            Self::A => rf.a,
+        }
+    }
+    pub fn write<B: Bus>(&self, rf: &mut RegisterFile, bus: &mut B, val: u8) {
+        match self {
+            Self::B => rf.b = val,
+            Self::C => rf.c = val,
+            Self::D => rf.d = val,
+            Self::E => rf.e = val,
+            Self::H => rf.h = val,
+            Self::L => rf.l = val,
+            Self::HLread => bus.write(rf.hl(), val),
+            Self::A => rf.a = val,
+        }
+    }
+}

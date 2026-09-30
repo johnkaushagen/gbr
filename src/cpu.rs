@@ -1,4 +1,4 @@
-use crate::Bus;
+use crate::{Bus, cpu::registers::Reg8};
 
 mod registers;
 use registers::RegisterFile;
@@ -77,20 +77,9 @@ impl Cpu {
             }
             0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x36 | 0x3e => {
                 let y = (opcode >> 3) & 0b111;
-                match y {
-                    0 => self.rf.b = self.fetch_byte(bus),
-                    1 => self.rf.c = self.fetch_byte(bus),
-                    2 => self.rf.d = self.fetch_byte(bus),
-                    3 => self.rf.e = self.fetch_byte(bus),
-                    4 => self.rf.h = self.fetch_byte(bus),
-                    5 => self.rf.l = self.fetch_byte(bus),
-                    6 => {
-                        let val = self.fetch_byte(bus);
-                        bus.write(self.rf.hl(), val);
-                    }
-                    7 => self.rf.a = self.fetch_byte(bus),
-                    _ => unreachable!(),
-                };
+                let reg = Reg8::from_index(y);
+                let val = self.fetch_byte(bus);
+                reg.write(&mut self.rf, bus, val);
                 if y == 6 {
                     return Ok(12);
                 }
@@ -151,17 +140,8 @@ impl Cpu {
             // alu xor
             0xa8..0xb0 => {
                 let z = opcode & 0b111;
-                let val = match z {
-                    0 => self.rf.b,
-                    1 => self.rf.c,
-                    2 => self.rf.d,
-                    3 => self.rf.e,
-                    4 => self.rf.h,
-                    5 => self.rf.l,
-                    6 => bus.read(self.rf.hl()),
-                    7 => self.rf.a,
-                    _ => unreachable!(),
-                };
+                let reg = Reg8::from_index(z);
+                let val = reg.read(&mut self.rf, bus);
                 self.alu_xor(val);
                 if z == 6 {
                     return Ok(8);
@@ -210,32 +190,13 @@ impl Cpu {
                     0x10..0x18 => {
                         // rl, r8
                         let z = prefix_op & 0b111;
-                        let mut val = match z {
-                            0 => self.rf.b,
-                            1 => self.rf.c,
-                            2 => self.rf.d,
-                            3 => self.rf.e,
-                            4 => self.rf.h,
-                            5 => self.rf.l,
-                            6 => bus.read(self.rf.hl()),
-                            7 => self.rf.a,
-                            _ => unreachable!(),
-                        };
+                        let reg = Reg8::from_index(z);
+                        let mut val = reg.read(&mut self.rf, bus);
                         let high_bit = val >> 7;
                         let carry_bit = self.rf.flags.carry as u8;
                         val <<= 1;
                         val |= carry_bit;
-                        match z {
-                            0 => self.rf.b = val,
-                            1 => self.rf.c = val,
-                            2 => self.rf.d = val,
-                            3 => self.rf.e = val,
-                            4 => self.rf.h = val,
-                            5 => self.rf.l = val,
-                            6 => bus.write(self.rf.hl(), val),
-                            7 => self.rf.a = val,
-                            _ => unreachable!(),
-                        };
+                        reg.write(&mut self.rf, bus, val);
                         self.rf.flags.zero = val == 0;
                         self.rf.flags.subtract = false;
                         self.rf.flags.half_carry = false;
