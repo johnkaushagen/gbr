@@ -23,8 +23,8 @@ fn main() {
         }
         _ => (),
     };
-    let mut cpu = Cpu::new(&mut buffer);
+    let mut cpu = Cpu::default();
     loop {
-        cpu.cycle(&mut buffer);
+        cpu.cycle_instruction(&mut buffer);
     }
 }
