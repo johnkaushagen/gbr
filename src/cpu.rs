@@ -19,10 +19,26 @@ impl Cpu {
             0x01 | 0x11 | 0x21 | 0x31 => {
                 let val = self.fetch_word(bus);
                 match (opcode >> 4) & 0b11 {
-                    0 => self.rf.set_bc(val),
-                    1 => self.rf.set_de(val),
-                    2 => self.rf.set_hl(val),
-                    3 => self.rf.sp = val,
+                    0 => {
+                        let r16 = "bc";
+                        self.rf.set_bc(val);
+                        println!("ld {r16}, {val:#06x}");
+                    }
+                    1 => {
+                        let r16 = "de";
+                        self.rf.set_de(val);
+                        println!("ld {r16}, {val:#06x}");
+                    }
+                    2 => {
+                        let r16 = "hl";
+                        self.rf.set_hl(val);
+                        println!("ld {r16}, {val:#06x}");
+                    }
+                    3 => {
+                        let r16 = "sp";
+                        self.rf.sp = val;
+                        println!("ld {r16}, {val:#06x}");
+                    }
                     _ => unreachable!(),
                 };
                 Ok(12)
@@ -36,6 +52,7 @@ impl Cpu {
                     3 => bus.write(self.rf.hl_decrement(), self.rf.a),
                     _ => unreachable!(),
                 };
+                println!("ld (r8), a");
                 Ok(8)
             }
 
