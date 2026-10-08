@@ -12,12 +12,10 @@ impl Cpu {
     pub fn cycle_instruction<B: Bus>(&mut self, bus: &mut B) -> Result<usize, String> {
         let addr = self.rf.pc;
         let opcode = self.fetch_byte(bus);
+        println!("{opcode:#04x} ; {addr:#06x}");
 
         match opcode {
-            0x00 => {
-                print_opcode_debug_info(opcode, addr, format!("nop"));
-                Ok(4)
-            }
+            0x00 => Ok(4),
             0x01 | 0x11 | 0x21 | 0x31 => {
                 let val = self.fetch_word(bus);
                 match (opcode >> 4) & 0b11 {
@@ -48,7 +46,7 @@ impl Cpu {
                     0 => self.rf.set_bc(self.rf.bc().wrapping_add(1)),
                     1 => self.rf.set_de(self.rf.de().wrapping_add(1)),
                     2 => self.rf.set_hl(self.rf.hl().wrapping_add(1)),
-                    3 => self.rf.set_af(self.rf.af().wrapping_add(1)),
+                    3 => self.rf.sp = self.rf.sp.wrapping_add(1),
                     _ => unreachable!(),
                 };
                 Ok(8)
@@ -219,10 +217,7 @@ impl Cpu {
 
             0xcd => {
                 let a16 = self.fetch_word(bus);
-                self.rf.sp = self.rf.sp.wrapping_sub(1);
-                bus.write(self.rf.sp, self.rf.pc as u8);
-                self.rf.sp = self.rf.sp.wrapping_sub(1);
-                bus.write(self.rf.sp, (self.rf.pc >> 8) as u8);
+                self.push_stack(bus, self.rf.pc);
                 self.rf.pc = a16;
                 Ok(24)
             }
@@ -267,7 +262,13 @@ impl Cpu {
         self.rf.sp = self.rf.sp.wrapping_add(1);
         u16::from_be_bytes([hi, lo])
     }
-    pub fn push_stack<B: Bus>(&mut self, bus: &mut B, val: u16) {}
+    pub fn push_stack<B: Bus>(&mut self, bus: &mut B, val: u16) {
+        let [lo, hi] = val.to_le_bytes();
+        self.rf.sp = self.rf.sp.wrapping_sub(1);
+        bus.write(self.rf.sp, hi);
+        self.rf.sp = self.rf.sp.wrapping_sub(1);
+        bus.write(self.rf.sp, lo);
+    }
 
     // idu ops
     fn dec_byte(&mut self, val: u8) -> u8 {

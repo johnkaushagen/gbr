@@ -50,9 +50,9 @@ impl RegisterFile {
         hl
     }
     pub fn hl_decrement(&mut self) -> u16 {
-        let hl = self.hl();
-        self.set_hl(hl.wrapping_sub(1));
-        hl
+        let old_hl = self.hl();
+        self.set_hl(old_hl.wrapping_sub(1));
+        old_hl
     }
 }
 
