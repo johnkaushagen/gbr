@@ -1,318 +1,391 @@
-use crate::{Bus, cpu::registers::Reg8};
+use crate::{Bus, cpu::register::RegisterFile};
 
-mod registers;
-use registers::RegisterFile;
+pub mod register;
 
 #[derive(Default)]
 pub struct Cpu {
+    a: u8,
+    f: u8,
+    b: u8,
+    c: u8,
+    d: u8,
+    e: u8,
+    h: u8,
+    l: u8,
+    pc: u16,
+    sp: u16,
     rf: RegisterFile,
 }
 
 impl Cpu {
-    pub fn cycle_instruction<B: Bus>(&mut self, bus: &mut B) -> Result<usize, String> {
-        let addr = self.rf.pc;
+    pub fn emulate_instruction<B: Bus>(&mut self, bus: &mut B) {
+        let addr = self.pc;
         let opcode = self.fetch_byte(bus);
-        println!("{opcode:#04x} ; {addr:#06x}");
-
         match opcode {
-            0x00 => Ok(4),
-            0x01 | 0x11 | 0x21 | 0x31 => {
-                let val = self.fetch_word(bus);
-                match (opcode >> 4) & 0b11 {
-                    0 => {
-                        let r16 = "bc";
-                        self.rf.set_bc(val);
-                        println!("ld {r16}, {val:#06x}");
-                    }
-                    1 => {
-                        let r16 = "de";
-                        self.rf.set_de(val);
-                        println!("ld {r16}, {val:#06x}");
-                    }
-                    2 => {
-                        let r16 = "hl";
-                        self.rf.set_hl(val);
-                        println!("ld {r16}, {val:#06x}");
-                    }
-                    3 => {
-                        let r16 = "sp";
-                        self.rf.sp = val;
-                        println!("ld {r16}, {val:#06x}");
-                    }
-                    _ => unreachable!(),
-                };
-                Ok(12)
+            0x04 => {
+                // inc b
+                self.b = self.inc_byte(self.b);
+                let mnemonic = "inc b".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-
-            0x02 | 0x12 | 0x22 | 0x32 => {
-                match (opcode >> 4) & 0b11 {
-                    0 => bus.write(self.rf.bc(), self.rf.a),
-                    1 => bus.write(self.rf.de(), self.rf.a),
-                    2 => bus.write(self.rf.hl_increment(), self.rf.a),
-                    3 => bus.write(self.rf.hl_decrement(), self.rf.a),
-                    _ => unreachable!(),
-                };
-                println!("ld (r8), a");
-                Ok(8)
+            0x05 => {
+                // dec b
+                self.b = self.dec_byte(self.b);
+                let mnemonic = "dec b".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-
-            // 16-bit increment
-            0x03 | 0x13 | 0x23 | 0x33 => {
-                let p = (opcode >> 4) & 0b11;
-                match p {
-                    0 => self.rf.set_bc(self.rf.bc().wrapping_add(1)),
-                    1 => self.rf.set_de(self.rf.de().wrapping_add(1)),
-                    2 => self.rf.set_hl(self.rf.hl().wrapping_add(1)),
-                    3 => self.rf.sp = self.rf.sp.wrapping_add(1),
-                    _ => unreachable!(),
-                };
-                Ok(8)
+            0x06 => {
+                // ld b, n8
+                let n8 = self.fetch_byte(bus);
+                self.b = n8;
+                let mnemonic = format!("ld b, {n8:#04x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            0x04 | 0x0c | 0x14 | 0x1c | 0x24 | 0x2c | 0x34 | 0x3c => {
-                let y = (opcode >> 3) & 0b111;
-                if y == 6 {
-                    let mut val = bus.read(self.rf.hl());
-                    val = self.inc_byte(val);
-                    bus.write(self.rf.hl(), val);
-                    return Ok(12);
-                }
-                self.rf[y] = self.inc_byte(self.rf[y]);
-                Ok(4)
+            0x0c => {
+                // inc c
+                let mnemonic = "inc c".to_string();
+                self.c = self.inc_byte(self.c);
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            0x05 | 0x0d | 0x15 | 0x1d | 0x25 | 0x2d | 0x35 | 0x3d => {
-                let y = (opcode >> 3) & 0b111;
-                if y == 6 {
-                    let mut val = bus.read(self.rf.hl());
-                    val = self.dec_byte(val);
-                    bus.write(self.rf.hl(), val);
-                    return Ok(12);
-                }
-                self.rf[y] = self.dec_byte(self.rf[y]);
-                Ok(4)
+            0x0d => {
+                // dec c
+                self.c = self.dec_byte(self.c);
+                let mnemonic = "dec c".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            0x06 | 0x0e | 0x16 | 0x1e | 0x26 | 0x2e | 0x36 | 0x3e => {
-                let y = (opcode >> 3) & 0b111;
-                let reg = Reg8::from_index(y);
-                let val = self.fetch_byte(bus);
-                reg.write(&mut self.rf, bus, val);
-                if y == 6 {
-                    return Ok(12);
-                }
-                Ok(8)
+            0x0e => {
+                // ld c, n8
+                let n8 = self.fetch_byte(bus);
+                let mnemonic = format!("ld c, {n8:#04x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+                self.c = n8;
             }
-
-            0x0a | 0x1a | 0x2a | 0x3a => {
-                match (opcode >> 4) & 0b11 {
-                    0 => self.rf.a = bus.read(self.rf.bc()),
-                    1 => self.rf.a = bus.read(self.rf.de()),
-                    2 => self.rf.a = bus.read(self.rf.hl_increment()),
-                    3 => self.rf.a = bus.read(self.rf.hl_decrement()),
-                    _ => unreachable!(),
-                };
-                Ok(8)
+            0x11 => {
+                let lo = self.fetch_byte(bus);
+                let hi = self.fetch_byte(bus);
+                let de = u16::from_be_bytes([hi, lo]);
+                [self.d, self.e] = de.to_be_bytes();
+                let mnemonic = format!("ld de, {de:#06x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-
+            0x13 => {
+                let de = u16::from_be_bytes([self.d, self.e]).wrapping_add(1);
+                [self.d, self.e] = de.to_le_bytes();
+                let mnemonic = "inc de".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
             0x17 => {
-                let carry_bit = self.rf.a >> 7;
-                self.rf.a = (self.rf.a << 1) | (self.rf.flags.carry as u8);
-                self.rf.flags.zero = false;
-                self.rf.flags.subtract = false;
-                self.rf.flags.half_carry = false;
-                self.rf.flags.carry = carry_bit == 1;
-                Ok(4)
-            }
-
-            0x20 => {
-                let e8 = self.fetch_byte(bus) as i8;
-                if !self.rf.flags.zero {
-                    self.rf.pc = self.rf.pc.wrapping_add_signed(e8 as i16);
-                    Ok(12)
-                } else {
-                    Ok(8)
-                }
-            }
-
-            0x40..0x80 => {
-                let src = opcode & 0b111;
-                let dst = (opcode >> 3) & 0b111;
-                if src != 6 && dst != 6 {
-                    self.rf[dst] = self.rf[src];
-                    return Ok(4);
-                }
-                if src == 6 {
-                    if dst == 6 {
-                        todo!("opcode {opcode:#04x} HALT");
-                    } else {
-                        self.rf[dst] = bus.read(self.rf.hl());
-                        return Ok(8);
-                    }
-                } else {
-                    bus.write(self.rf.hl(), self.rf[src]);
-                    return Ok(8);
-                }
-            }
-
-            // alu xor
-            0xa8..0xb0 => {
-                let z = opcode & 0b111;
-                let reg = Reg8::from_index(z);
-                let val = reg.read(&mut self.rf, bus);
-                self.alu_xor(val);
-                if z == 6 {
-                    return Ok(8);
-                }
-                Ok(4)
-            }
-
-            0xc1 | 0xd1 | 0xe1 | 0xf1 => {
-                let p = (opcode >> 4) & 0b11;
-                let val = self.pop_stack(bus);
-                match p {
-                    0 => self.rf.set_bc(val),
-                    1 => self.rf.set_de(val),
-                    2 => self.rf.set_hl(val),
-                    3 => self.rf.set_af(val),
-                    _ => unreachable!(),
-                }
-                Ok(12)
-            }
-
-            0xc5 | 0xd5 | 0xe5 | 0xf5 => {
-                let p = (opcode >> 4) & 0b11;
-                let val = match p {
-                    0 => self.rf.bc(),
-                    1 => self.rf.de(),
-                    2 => self.rf.hl(),
-                    3 => self.rf.af(),
-                    _ => unreachable!(),
+                // rla
+                let carry_bit = match self.flag_c() {
+                    true => 1,
+                    false => 1,
                 };
-                self.rf.sp = self.rf.sp.wrapping_sub(1);
-                bus.write(self.rf.sp, val as u8);
-                self.rf.sp = self.rf.sp.wrapping_sub(1);
-                bus.write(self.rf.sp, (val >> 8) as u8);
-                Ok(16)
+                let high_bit = self.a >> 7;
+                self.a <<= 1;
+                self.a |= carry_bit;
+                self.set_flag_z(self.a == 0);
+                self.set_flag_n(false);
+                self.set_flag_h(false);
+                self.set_flag_c(high_bit == 1);
+                let mnemonic = "rla".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-
+            0x18 => {
+                let e8 = self.fetch_byte(bus) as i8;
+                let jump_addr = self.pc.wrapping_add_signed(e8 as i16);
+                let mnemonic = format!("jr {jump_addr:#06x}");
+                self.pc = jump_addr;
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x1a => {
+                let de = u16::from_be_bytes([self.d, self.e]);
+                self.a = bus.read(de);
+                let mnemonic = "ld a, (de)".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x20 => {
+                // jr nz, e8
+                let offset = self.fetch_byte(bus) as i8;
+                let jump_addr = self.pc.wrapping_add_signed(offset as i16);
+                let mnemonic = format!("jr nz, {jump_addr:#06x}");
+                if !self.flag_z() {
+                    self.pc = jump_addr;
+                }
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x21 => {
+                let lo = self.fetch_byte(bus);
+                let hi = self.fetch_byte(bus);
+                let hl = u16::from_be_bytes([hi, lo]);
+                let mnemonic = format!("ld hl, {hl:#06x}");
+                [self.h, self.l] = hl.to_be_bytes();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x22 => {
+                let mut hl = u16::from_be_bytes([self.h, self.l]);
+                bus.write(hl, self.a);
+                hl = hl.wrapping_add(1);
+                [self.h, self.l] = hl.to_be_bytes();
+                let mnemonic = "ld (hl+), a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x23 => {
+                // inc hl
+                let mut hl = u16::from_be_bytes([self.h, self.l]);
+                hl = hl.wrapping_add(1);
+                [self.h, self.l] = hl.to_be_bytes();
+                let mnemonic = "inc hl".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x28 => {
+                let e8 = self.fetch_byte(bus) as i8;
+                let jump_addr = self.pc.wrapping_add_signed(e8 as i16);
+                if self.flag_z() {
+                    self.pc = jump_addr;
+                }
+                let mnemonic = format!("jr z, {jump_addr:#06x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x2e => {
+                let n8 = self.fetch_byte(bus);
+                self.l = n8;
+                let mnemonic = format!("ld l, {n8:#04x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x31 => {
+                // ld sp, n16
+                let lo = self.fetch_byte(bus);
+                let hi = self.fetch_byte(bus);
+                let sp = u16::from_be_bytes([hi, lo]);
+                let mnemonic = format!("ld sp, {sp:#06x}");
+                self.sp = sp;
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x32 => {
+                // ld (hl-), a
+                let mut hl = u16::from_be_bytes([self.h, self.l]);
+                bus.write(hl, self.a);
+                hl = hl.wrapping_sub(1);
+                [self.h, self.l] = hl.to_be_bytes();
+                let mnemonic = "ld (hl-), a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x3d => {
+                self.a = self.dec_byte(self.a);
+                let mnemonic = "dec a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x3e => {
+                // ld a, n8
+                let n8 = self.fetch_byte(bus);
+                self.a = n8;
+                let mnemonic = format!("ld a, {n8:#04x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x4f => {
+                // ld c, a
+                self.c = self.a;
+                let mnemonic = "ld c, a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x57 => {
+                self.d = self.a;
+                let mnemonic = "ld d, a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x67 => {
+                self.h = self.a;
+                let mnemonic = "ld h, a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x77 => {
+                let hl = u16::from_be_bytes([self.h, self.l]);
+                bus.write(hl, self.a);
+                let mnemonic = "ld (hl), a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x7b => {
+                self.a = self.e;
+                let mnemonic = "ld a, e".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0xaf => {
+                // xor a, a
+                self.a ^= self.a;
+                self.f = 0x80;
+                let mnemonic = "xor a, a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0xc1 => {
+                let bc = self.pop_stack(bus);
+                [self.b, self.c] = bc.to_be_bytes();
+                let mnemonic = "pop bc".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0xc5 => {
+                let bc = u16::from_be_bytes([self.b, self.c]);
+                self.push_stack(bc, bus);
+                let mnemonic = "push bc".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
             0xc9 => {
-                // ret
-                let pc = self.pop_stack(bus);
-                self.rf.pc = pc;
-                Ok(16)
+                let ret_addr = self.pop_stack(bus);
+                println!("{ret_addr:#06x}");
+                self.pc = ret_addr;
+                let mnemonic = "ret".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
             0xcb => {
-                let prefix_op = self.fetch_byte(bus);
-                match prefix_op {
-                    0x10..0x18 => {
-                        // rl, r8
-                        let z = prefix_op & 0b111;
-                        let reg = Reg8::from_index(z);
-                        let mut val = reg.read(&mut self.rf, bus);
-                        let high_bit = val >> 7;
-                        let carry_bit = self.rf.flags.carry as u8;
-                        val <<= 1;
-                        val |= carry_bit;
-                        reg.write(&mut self.rf, bus, val);
-                        self.rf.flags.zero = val == 0;
-                        self.rf.flags.subtract = false;
-                        self.rf.flags.half_carry = false;
-                        self.rf.flags.carry = high_bit == 1;
-                        if z == 6 {
-                            return Ok(12);
-                        }
-                        Ok(8)
+                // prefix instructions
+                let prefix = self.fetch_byte(bus);
+                match prefix {
+                    0x11 => {
+                        let carry_bit = match self.flag_c() {
+                            true => 1,
+                            false => 1,
+                        };
+                        let high_bit = self.c >> 7;
+                        self.c <<= 1;
+                        self.c |= carry_bit;
+                        self.set_flag_z(self.c == 0);
+                        self.set_flag_n(false);
+                        self.set_flag_h(false);
+                        self.set_flag_c(high_bit == 1);
+                        let mnemonic = "rl c".to_string();
+                        self.print_instruction_debug_info(opcode, addr, mnemonic);
                     }
                     0x7c => {
-                        let res = self.rf.h >> 7;
-                        self.rf.flags.zero = res == 0;
-                        self.rf.flags.subtract = false;
-                        self.rf.flags.half_carry = true;
-                        Ok(8)
+                        let bit = self.h >> 7;
+                        if bit == 0 {
+                            self.f &= 0b0001_0000;
+                            self.f |= 0b1010_0000;
+                        } else {
+                            self.f &= 0b0001_0000;
+                            self.f |= 0b0011_0000;
+                        }
+                        let mnemonic = "bit 7, h".to_string();
+                        self.print_instruction_debug_info(opcode, addr, mnemonic);
                     }
-                    _ => todo!("0xcb{prefix_op:02x}"),
+                    _ => todo!("opcode 0xcb{prefix:02x}"),
                 }
             }
-
             0xcd => {
-                let a16 = self.fetch_word(bus);
-                self.push_stack(bus, self.rf.pc);
-                self.rf.pc = a16;
-                Ok(24)
+                let lo = self.fetch_byte(bus);
+                let hi = self.fetch_byte(bus);
+                let a16 = u16::from_be_bytes([hi, lo]);
+                self.push_stack(self.pc, bus);
+                self.pc = a16;
+                let mnemonic = format!("call {a16:#06x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-
-            0xe0 | 0xf0 => {
+            0xe0 => {
                 let a8 = self.fetch_byte(bus);
-                if opcode == 0xe0 {
-                    bus.write(0xff00 + (a8 as u16), self.rf.a);
-                } else {
-                    self.rf.a = bus.read(0xff00 + (a8 as u16));
-                }
-                Ok(12)
+                bus.write(0xff00 + (a8 as u16), self.a);
+                let mnemonic = "ldh (a8), a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            0xe2 | 0xf2 => {
-                if opcode == 0xe2 {
-                    bus.write(0xff00 + (self.rf.c as u16), self.rf.a);
-                } else {
-                    self.rf.a = bus.read(0xff00 + (self.rf.c as u16));
-                }
-                Ok(8)
+            0xe2 => {
+                // ldh c, a
+                let write_addr = 0xff00 + (self.c as u16);
+                bus.write(write_addr, self.a);
+                let mnemonic = "ldh (c), a".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            _ => todo!("{opcode:#04x}"),
+            0xea => {
+                let lo = self.fetch_byte(bus);
+                let hi = self.fetch_byte(bus);
+                let a16 = u16::from_be_bytes([hi, lo]);
+                bus.write(a16, self.a);
+                let mnemonic = format!("ld ({a16:#06x}), a");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0xfe => {
+                // cp a, n8
+                let n8 = self.fetch_byte(bus);
+                let diff = self.a.wrapping_sub(n8);
+                self.set_flag_z(diff == 0);
+                self.set_flag_n(true);
+                self.set_flag_h((self.a & 0xff) < (n8 & 0xff));
+                self.set_flag_c(self.a < n8);
+                let mnemonic = format!("cp a, {n8:#04x}");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            _ => todo!("opcode {opcode:#04x}"),
         }
     }
 
-    pub fn fetch_byte<B: Bus>(&mut self, bus: &mut B) -> u8 {
-        let addr = self.rf.pc;
-        self.rf.pc = self.rf.pc.wrapping_add(1);
-        bus.read(addr)
+    pub fn inc_byte(&mut self, byte: u8) -> u8 {
+        self.set_flag_z(byte == 0xff);
+        self.set_flag_n(false);
+        self.set_flag_h((byte & 0x0f) == 0x0f);
+        byte.wrapping_add(1)
     }
-
-    pub fn fetch_word<B: Bus>(&mut self, bus: &mut B) -> u16 {
-        let word_lo = self.fetch_byte(bus);
-        let word_hi = self.fetch_byte(bus);
-        u16::from_le_bytes([word_lo, word_hi])
+    pub fn dec_byte(&mut self, byte: u8) -> u8 {
+        self.set_flag_z(byte == 0x01);
+        self.set_flag_n(true);
+        self.set_flag_h((byte & 0x0f) == 0x00);
+        byte.wrapping_sub(1)
     }
 
     pub fn pop_stack<B: Bus>(&mut self, bus: &mut B) -> u16 {
-        let lo = bus.read(self.rf.sp);
-        self.rf.sp = self.rf.sp.wrapping_add(1);
-        let hi = bus.read(self.rf.sp);
-        self.rf.sp = self.rf.sp.wrapping_add(1);
+        let lo = bus.read(self.sp);
+        self.sp = self.sp.wrapping_add(1);
+        let hi = bus.read(self.sp);
+        self.sp = self.sp.wrapping_add(1);
         u16::from_be_bytes([hi, lo])
     }
-    pub fn push_stack<B: Bus>(&mut self, bus: &mut B, val: u16) {
-        let [lo, hi] = val.to_le_bytes();
-        self.rf.sp = self.rf.sp.wrapping_sub(1);
-        bus.write(self.rf.sp, hi);
-        self.rf.sp = self.rf.sp.wrapping_sub(1);
-        bus.write(self.rf.sp, lo);
+    pub fn push_stack<B: Bus>(&mut self, val: u16, bus: &mut B) {
+        let [hi, lo] = val.to_be_bytes();
+        self.sp = self.sp.wrapping_sub(1);
+        bus.write(self.sp, hi);
+        self.sp = self.sp.wrapping_sub(1);
+        bus.write(self.sp, lo);
     }
 
-    // idu ops
-    fn dec_byte(&mut self, val: u8) -> u8 {
-        let new = val.wrapping_sub(1);
-        self.rf.flags.zero = new == 0;
-        self.rf.flags.subtract = true;
-        self.rf.flags.half_carry = (val & 0x10) == 0x10;
-        new
+    pub fn fetch_byte<B: Bus>(&mut self, bus: &mut B) -> u8 {
+        let byte = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        byte
     }
-    fn inc_byte(&mut self, val: u8) -> u8 {
-        let new = val.wrapping_add(1);
-        self.rf.flags.zero = new == 0;
-        self.rf.flags.subtract = false;
-        self.rf.flags.half_carry = (val & 0x0f) == 0x0f;
-        new
-    }
-    // alu operations
-    fn alu_xor(&mut self, val: u8) {
-        self.rf.a = self.rf.a ^ val;
-        self.rf.flags.zero = self.rf.a == 0;
-        self.rf.flags.subtract = false;
-        self.rf.flags.half_carry = false;
-        self.rf.flags.carry = false;
-    }
-}
 
-// debugging
-fn print_opcode_debug_info(opcode: u8, addr: u16, info: String) {
-    println!("{addr:#06x}: {info:<20}  ; (opcode: {opcode:#04x}");
+    pub fn flag_z(&self) -> bool {
+        (self.f >> 7) == 1
+    }
+    pub fn set_flag_z(&mut self, val: bool) {
+        self.f &= !(1 << 7);
+        if val {
+            self.f |= 1 << 7;
+        }
+    }
+    pub fn flag_n(&self) -> bool {
+        ((self.f >> 6) & 1) == 1
+    }
+    pub fn set_flag_n(&mut self, val: bool) {
+        self.f &= !(1 << 6);
+        if val {
+            self.f |= 1 << 6;
+        }
+    }
+    pub fn flag_h(&self) -> bool {
+        ((self.f >> 5) & 1) == 1
+    }
+    pub fn set_flag_h(&mut self, val: bool) {
+        self.f &= !(1 << 5);
+        if val {
+            self.f |= 1 << 5;
+        }
+    }
+    pub fn flag_c(&self) -> bool {
+        ((self.f >> 4) & 1) == 1
+    }
+    pub fn set_flag_c(&mut self, val: bool) {
+        self.f &= !(1 << 4);
+        if val {
+            self.f |= 1 << 4;
+        }
+    }
+
+    fn print_instruction_debug_info(&self, opcode: u8, addr: u16, mnemonic: String) {
+        println!("{addr:#06x}: {mnemonic:<20}  ; {opcode:#04x}");
+    }
 }

@@ -1,30 +1,35 @@
-use std::{env, fs::File, io::Read};
 pub mod bus;
-pub mod cpu;
+use std::{
+    fs::File,
+    io::{self, Read},
+};
 
 pub use bus::Bus;
-pub use cpu::Cpu;
+mod cpu;
+use cpu::Cpu;
 
 fn main() {
-    let args: Vec<_> = env::args().collect();
-    let filepath = args[1].as_str();
-    let mut f = match File::open(filepath) {
+    let mut fp = match File::open("roms/test.bin") {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("Could not open file \"{filepath}\". ({e})");
+            eprintln!("Could not open file. {e}");
             return;
         }
     };
-    let mut buffer = [0u8; 0x10000];
-    match f.read(&mut buffer) {
+    let mut rom_buffer = Vec::from([0u8; 0x10000]);
+    let nbytes = match fp.read(&mut rom_buffer) {
+        Ok(n) => n,
         Err(e) => {
-            eprintln!("Could not read file \"{filepath}\". ({e})");
+            eprintln!("Could not read file. {e}");
             return;
         }
-        _ => (),
     };
     let mut cpu = Cpu::default();
-    loop {
-        cpu.cycle_instruction(&mut buffer);
+    let mut input = String::new();
+    while input != "q".to_string() {
+        cpu.emulate_instruction(&mut rom_buffer);
+        // io::stdin()
+        //     .read_line(&mut input)
+        //     .expect("failed to read user input");
     }
 }
