@@ -22,16 +22,46 @@ impl Cpu {
         let addr = self.pc;
         let opcode = self.fetch_byte(bus);
         match opcode {
-            0x04 => {
-                // inc b
-                self.b = self.inc_byte(self.b);
-                let mnemonic = "inc b".to_string();
+            0x04 | 0x0c | 0x14 | 0x1c | 0x24 | 0x2c | 0x34 | 0x3c => {
+                let reg_index = (opcode >> 3) & 0b111;
+                let reg_name = self.reg_name_from_index(reg_index);
+                let mnemonic = format!("inc {reg_name}");
+                match reg_index {
+                    0 => self.b = self.inc_byte(self.b),
+                    1 => self.c = self.inc_byte(self.c),
+                    2 => self.d = self.inc_byte(self.d),
+                    3 => self.e = self.inc_byte(self.e),
+                    4 => self.h = self.inc_byte(self.h),
+                    5 => self.l = self.inc_byte(self.l),
+                    6 => {
+                        let hl = u16::from_be_bytes([self.h, self.l]);
+                        let val = bus.read(hl);
+                        bus.write(hl, self.inc_byte(val));
+                    }
+                    7 => self.a = self.inc_byte(self.a),
+                    _ => unreachable!(),
+                };
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
-            0x05 => {
-                // dec b
-                self.b = self.dec_byte(self.b);
-                let mnemonic = "dec b".to_string();
+            0x05 | 0x0d | 0x15 | 0x1d | 0x25 | 0x2d | 0x35 | 0x3d => {
+                let reg_index = (opcode >> 3) & 0b111;
+                let reg_name = self.reg_name_from_index(reg_index);
+                let mnemonic = format!("dec {reg_name}");
+                match reg_index {
+                    0 => self.b = self.dec_byte(self.b),
+                    1 => self.c = self.dec_byte(self.c),
+                    2 => self.d = self.dec_byte(self.d),
+                    3 => self.e = self.dec_byte(self.e),
+                    4 => self.h = self.dec_byte(self.h),
+                    5 => self.l = self.dec_byte(self.l),
+                    6 => {
+                        let hl = u16::from_be_bytes([self.h, self.l]);
+                        let val = bus.read(hl);
+                        bus.write(hl, self.dec_byte(val));
+                    }
+                    7 => self.a = self.dec_byte(self.a),
+                    _ => unreachable!(),
+                };
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
             0x06 => {
@@ -39,18 +69,6 @@ impl Cpu {
                 let n8 = self.fetch_byte(bus);
                 self.b = n8;
                 let mnemonic = format!("ld b, {n8:#04x}");
-                self.print_instruction_debug_info(opcode, addr, mnemonic);
-            }
-            0x0c => {
-                // inc c
-                let mnemonic = "inc c".to_string();
-                self.c = self.inc_byte(self.c);
-                self.print_instruction_debug_info(opcode, addr, mnemonic);
-            }
-            0x0d => {
-                // dec c
-                self.c = self.dec_byte(self.c);
-                let mnemonic = "dec c".to_string();
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
             0x0e => {
@@ -101,6 +119,12 @@ impl Cpu {
                 let de = u16::from_be_bytes([self.d, self.e]);
                 self.a = bus.read(de);
                 let mnemonic = "ld a, (de)".to_string();
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
+            0x1e => {
+                let n8 = self.fetch_byte(bus);
+                self.e = n8;
+                let mnemonic = format!("ld e, {n8:#04x}");
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
             0x20 => {
@@ -168,11 +192,6 @@ impl Cpu {
                 hl = hl.wrapping_sub(1);
                 [self.h, self.l] = hl.to_be_bytes();
                 let mnemonic = "ld (hl-), a".to_string();
-                self.print_instruction_debug_info(opcode, addr, mnemonic);
-            }
-            0x3d => {
-                self.a = self.dec_byte(self.a);
-                let mnemonic = "dec a".to_string();
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
             0x3e => {
@@ -299,6 +318,13 @@ impl Cpu {
                 let mnemonic = format!("ld ({a16:#06x}), a");
                 self.print_instruction_debug_info(opcode, addr, mnemonic);
             }
+            0xf0 => {
+                let a8 = self.fetch_byte(bus);
+                let load_addr = 0xff00 + (a8 as u16);
+                self.a = bus.read(load_addr);
+                let mnemonic = format!("ldh a, (0xff{a8:02x})");
+                self.print_instruction_debug_info(opcode, addr, mnemonic);
+            }
             0xfe => {
                 // cp a, n8
                 let n8 = self.fetch_byte(bus);
@@ -320,6 +346,7 @@ impl Cpu {
         self.set_flag_h((byte & 0x0f) == 0x0f);
         byte.wrapping_add(1)
     }
+
     pub fn dec_byte(&mut self, byte: u8) -> u8 {
         self.set_flag_z(byte == 0x01);
         self.set_flag_n(true);
@@ -388,4 +415,50 @@ impl Cpu {
     fn print_instruction_debug_info(&self, opcode: u8, addr: u16, mnemonic: String) {
         println!("{addr:#06x}: {mnemonic:<20}  ; {opcode:#04x}");
     }
+    fn reg_name_from_index(&self, index: u8) -> String {
+        match index {
+            0 => "b".to_string(),
+            1 => "c".to_string(),
+            2 => "d".to_string(),
+            3 => "e".to_string(),
+            4 => "h".to_string(),
+            5 => "l".to_string(),
+            6 => "(hl)".to_string(),
+            7 => "a".to_string(),
+            _ => panic!("invalid register index {index}"),
+        }
+    }
+}
+
+pub struct Flags {
+    pub zero: bool,
+    pub subtract: bool,
+    pub half_carry: bool,
+    pub carry: bool,
+}
+
+impl Flags {
+    const ZBIT: u8 = 7;
+    const NBIT: u8 = 6;
+    const HBIT: u8 = 5;
+    const CBIT: u8 = 4;
+
+    pub fn as_u8(&self) -> u8 {
+        ((self.zero as u8) << Self::ZBIT)
+            | ((self.subtract as u8) << Self::NBIT)
+            | ((self.half_carry as u8) << Self::HBIT)
+            | ((self.carry as u8) << Self::CBIT)
+    }
+}
+
+pub enum Reg8 {
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    HLRef,
+    A,
+    F,
 }
