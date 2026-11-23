@@ -18,6 +18,25 @@ pub struct Cpu {
 }
 
 impl Cpu {
+    pub fn gbdoctor_string<B: Bus>(&self, bus: &mut B) -> String {
+        format!(
+            "A:{:02X} F:{:02X} B:{:02X} B:{:02X} B:{:02X} B:{:02X} B:{:02X} B:{:02X} PC:{:04X} SP:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+            self.a,
+            self.f,
+            self.b,
+            self.c,
+            self.d,
+            self.e,
+            self.h,
+            self.l,
+            self.pc,
+            self.sp,
+            bus.read(self.pc),
+            bus.read(self.pc.wrapping_add(1)),
+            bus.read(self.pc.wrapping_add(2)),
+            bus.read(self.pc.wrapping_add(3)),
+        )
+    }
     pub fn emulate_instruction<B: Bus>(&mut self, bus: &mut B) {
         let addr = self.pc;
         let opcode = self.fetch_byte(bus);
